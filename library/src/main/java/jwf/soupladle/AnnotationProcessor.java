@@ -1,5 +1,6 @@
 package jwf.soupladle;
 
+import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
@@ -9,7 +10,6 @@ import com.squareup.javapoet.TypeSpec;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -21,21 +21,15 @@ import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
-import javax.annotation.processing.SupportedAnnotationTypes;
-import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 
 public class AnnotationProcessor extends AbstractProcessor {
-    private Elements mElements;
-    private Types mTypes;
     private Messager mMessager;
     private Filer mFiler;
 
@@ -43,33 +37,29 @@ public class AnnotationProcessor extends AbstractProcessor {
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         mMessager = processingEnv.getMessager();
-        mElements = processingEnv.getElementUtils();
-        mTypes = processingEnv.getTypeUtils();
         mFiler = processingEnv.getFiler();
     }
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.RELEASE_7;
+        return SourceVersion.latestSupported();
     }
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
         HashSet<String> result = new HashSet<>();
-        result.add(Bind.class.getName());
+        result.add(Bind.class.getCanonicalName());
         return result;
     }
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         if (annotations.isEmpty()) {
-            return false;
+            return true;
         }
 
         Map<TypeElement, List<VariableElement>> bindingClasses = new HashMap<>();
-        List<Element> allElements = new ArrayList<>();
         for (Element e : roundEnv.getElementsAnnotatedWith(Bind.class)) {
-            allElements.add(e);
             if (!(e instanceof VariableElement)) {
                 // all elements annotated with @Bind should be variables...
                 mMessager.printMessage(Diagnostic.Kind.WARNING, "Cannot use @Bind with non-variables, skipping.", e);
@@ -120,6 +110,10 @@ public class AnnotationProcessor extends AbstractProcessor {
 
                 soupLadleBuilder.addMethod(bindingBuilder.build());
             }
+
+            //@SuppressWarnings("ResourceType")
+            AnnotationSpec suppressIdentifierWarningAnnotation = AnnotationSpec.builder(SuppressWarnings.class).addMember("value", "$S", "ResourceType").build();
+            soupLadleBuilder.addAnnotation(suppressIdentifierWarningAnnotation);
 
             JavaFile file = JavaFile.builder("jwf.soupladle", soupLadleBuilder.build())
                     .indent("    ") // personally, I prefer 4-space tabs... JavaPoet defaults to 2-space
